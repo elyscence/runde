@@ -19,7 +19,7 @@ enum Status {
     Idle,
     HostStarting,
     HostWaiting { ticket: String },
-    HostConnected { peer: String },
+    HostConnected { ticket: String, peers: Vec<String> },
     JoinConnecting,
     JoinConnected,
     Error(String),
@@ -113,11 +113,17 @@ impl eframe::App for App {
                 Status::HostWaiting { ticket } => {
                     self.show_host_waiting(ui, ticket.clone());
                 }
-                Status::HostConnected { peer } => {
-                    self.show_connected(
-                        ui,
-                        format!("Друг подключился!\n\nPeer: {}", &peer[..peer.len().min(16)]),
+                Status::HostConnected { peers, .. } => {
+                    let msg = format!(
+                        "Друзья подключены ({})!\n\n{}",
+                        peers.len(),
+                        peers
+                            .iter()
+                            .map(|p| format!("• {}", &p[..p.len().min(16)]))
+                            .collect::<Vec<_>>()
+                            .join("\n")
                     );
+                    self.show_connected(ui, msg);
                 }
                 Status::JoinConnecting => {
                     self.show_waiting(ui, "Подключение к хосту…");
@@ -386,7 +392,9 @@ async fn run_host(
     let node_addr: EndpointAddr = endpoint.addr();
     let ticket = EndpointTicket::new(node_addr).to_string();
 
-    state.lock().unwrap().status = Status::HostWaiting { ticket };
+    state.lock().unwrap().status = Status::HostWaiting {
+        ticket: ticket.clone(),
+    };
 
     let mut stop_rx = stop_tx.subscribe();
 
@@ -408,10 +416,23 @@ async fn run_host(
 
                 let peer = conn.remote_id().fmt_short().to_string();
 
-                state.lock().unwrap().status = Status::HostConnected { peer };
+                {
+                    let mut s = state.lock().unwrap();
+                    match &mut s.status {
+                        Status::HostWaiting { ticket } => {
+                            let ticket = ticket.clone();
+                            s.status = Status::HostConnected { ticket, peers: vec![peer.clone()] };
+                        }
+                        Status::HostConnected { peers, .. } => {
+                            if !peers.contains(&peer) {
+                                peers.push(peer.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
 
                 let state2 = state.clone();
-                let stop_tx2 = stop_tx.clone();
                 tokio::spawn(async move {
                     loop {
                         match conn.accept_bi().await {
@@ -419,8 +440,15 @@ async fn run_host(
                                 tokio::spawn(proxy(streams, mc_port));
                             }
                             Err(_) => {
-                                state2.lock().unwrap().status = Status::Idle;
-                                let _ = stop_tx2.send(());
+                                // Убираем только ЭТОГО пира, хост не трогаем
+                                let mut s = state2.lock().unwrap();
+                                if let Status::HostConnected { peers, ticket } = &mut s.status {
+                                    peers.retain(|p| p != &peer);
+                                    if peers.is_empty() {
+                                        let ticket = ticket.clone();
+                                        s.status = Status::HostWaiting { ticket };
+                                    }
+                                }
                                 break;
                             }
                         }

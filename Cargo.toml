@@ -12,3 +12,10 @@ iroh-base = "1.0.0"
 iroh-tickets = "1.0.0"
 tokio = { version = "1.52.3", features = ["full"] }
 tracing-subscriber = "0.3.23"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
