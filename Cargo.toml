@@ -1,0 +1,14 @@
+[package]
+name = "mc-tunnel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.102"
+eframe = "0.34.3"
+egui = "0.34.3"
+iroh = "1.0.0"
+iroh-base = "1.0.0"
+iroh-tickets = "1.0.0"
+tokio = { version = "1.52.3", features = ["full"] }
+tracing-subscriber = "0.3.23"
