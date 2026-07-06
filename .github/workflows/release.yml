@@ -15,11 +15,11 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: runde.exe
+            artifact_name: mc-tunnel.exe
             asset_name: runde-windows-x86_64.exe
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: runde
+            artifact_name: mc-tunnel
             asset_name: runde-linux-x86_64
 
     runs-on: ${{ matrix.os }}
